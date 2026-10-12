@@ -56,40 +56,124 @@ def extract_text_from_upload(data: bytes, filename: str) -> str:
     raise ValueError("Unsupported file type")
 
 
+
 def _heuristic_extract(text: str) -> dict:
-    """Fallback extraction for demos/tests when no LLM API key is configured."""
-    lines = [line.strip(" •\t") for line in text.splitlines() if line.strip()]
+    """Extract medication details from labelled discharge text."""
+    lines = [
+        line.strip(" •\t-")
+        for line in text.splitlines()
+        if line.strip()
+    ]
+
     meds = []
-    dose_pattern = re.compile(r"\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|mL|units?|%)\b", re.I)
-    freq_pattern = re.compile(r"\b(?:once|twice|three times|four times|daily|weekly|every\s+\d+\s+hours?|\d+\s*x\s*(?:daily|a day))\b", re.I)
-    duration_pattern = re.compile(r"\b(?:for\s+)?\d+\s*(?:days?|weeks?|months?)\b", re.I)
-
-    for line in lines:
-        dose = dose_pattern.search(line)
-        if not dose:
-            continue
-        freq = freq_pattern.search(line)
-        duration = duration_pattern.search(line)
-        name = re.sub(r"^(?:medication|medicine)\s*:\s*", "", line[:dose.start()], flags=re.I).strip(" :-") or line.split()[0]
-        meds.append({
-            "medication": name,
-            "dosage": dose.group(0),
-            "frequency": freq.group(0) if freq else "",
-            "duration": duration.group(0) if duration else "",
-            "instructions": line,
-        })
-
+    current_med = None
+    other_instructions = []
     condition = ""
+
+    def save_medication():
+        if current_med is not None:
+            meds.append(current_med.copy())
+
     for line in lines:
-        if re.search(r"\b(diagnosis|diagnosed with|condition|procedure|admitted for|reason for admission)\b", line, re.I):
-            condition = re.sub(r"^.*?:", "", line).strip()
-            break
+        # Start a new medication section.
+        med_match = re.match(
+            r"^Medication\s*\d*\s*:\s*(.+)$",
+            line,
+            re.I,
+        )
+        if med_match:
+            save_medication()
+            current_med = {
+                "medication": med_match.group(1).strip(),
+                "dosage": "",
+                "frequency": "",
+                "duration": "",
+                "instructions": "",
+            }
+            continue
+
+        # Read labelled fields such as Dose: 500 mg.
+        field_match = re.match(
+            r"^(Dose|Dosage|Frequency|Duration|Instructions?)\s*:\s*(.*)$",
+            line,
+            re.I,
+        )
+
+        if field_match and current_med is not None:
+            field = field_match.group(1).lower()
+            value = field_match.group(2).strip()
+
+            if field in {"dose", "dosage"}:
+                current_med["dosage"] = value
+            elif field == "frequency":
+                current_med["frequency"] = value
+            elif field == "duration":
+                current_med["duration"] = value
+            else:
+                current_med["instructions"] = value
+            continue
+
+        # Also support medication details written on one line.
+        dose_match = re.search(
+            r"\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|mL|units?|%)\b",
+            line,
+            re.I,
+        )
+
+        if dose_match and current_med is None:
+            current_med = {
+                "medication": re.sub(
+                    r"^(?:Medication|Medicine)\s*\d*\s*:\s*",
+                    "",
+                    line[:dose_match.start()],
+                    flags=re.I,
+                ).strip(" :-"),
+                "dosage": dose_match.group(0),
+                "frequency": "",
+                "duration": "",
+                "instructions": "",
+            }
+
+        elif current_med is not None:
+            if re.match(r"^Frequency\s*:", line, re.I):
+                current_med["frequency"] = re.sub(
+                    r"^Frequency\s*:\s*", "", line, flags=re.I
+                )
+            elif re.match(r"^Duration\s*:", line, re.I):
+                current_med["duration"] = re.sub(
+                    r"^Duration\s*:\s*", "", line, flags=re.I
+                )
+            elif re.match(r"^Instructions?\s*:", line, re.I):
+                current_med["instructions"] = re.sub(
+                    r"^Instructions?\s*:\s*", "", line, flags=re.I
+                )
+
+        if re.search(
+            r"\b(diagnosis|diagnosed with|condition|procedure|"
+            r"admitted for|reason for admission)\b",
+            line,
+            re.I,
+        ):
+            condition = re.sub(
+                r"^.*?:\s*", "", line
+            ).strip()
+
+        if re.match(
+            r"^(additional instructions|other instructions|"
+            r"drink |contact |follow )",
+            line,
+            re.I,
+        ):
+            other_instructions.append(line)
+
+    save_medication()
 
     return {
         "medications": meds,
         "condition_or_procedure": condition,
-        "other_instructions": "\n".join(lines[:8]) if lines else "",
+        "other_instructions": "\n".join(other_instructions),
     }
+
 
 
 def _openai_extract(text: str) -> dict:
