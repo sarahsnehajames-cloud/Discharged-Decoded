@@ -7,6 +7,14 @@ Users can upload a photo or PDF of their discharge paperwork. The application ex
 
 Upload → OCR → Information Extraction → Review & Confirmation → Plain-Language Conversion → Reminders → Condition Education → Pharmacy Lookup → Notifications
 
+## Running the Application
+
+Run with:
+pip install -r requirements.txt
+streamlit run app.py
+
+
+
 ## Key Features
 
 - Upload discharge documents as photos or PDFs
