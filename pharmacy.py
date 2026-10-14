@@ -30,21 +30,39 @@ def find_pharmacies(location):
         latitude = float(places[0]["lat"])
         longitude = float(places[0]["lon"])
 
-        # Search for pharmacies within 5 km.
+        # Search for pharmacies within 3 km.
         query = f"""
         [out:json][timeout:20];
-        nwr(around:5000,{latitude},{longitude})
+        nwr(around:500,{latitude},{longitude})
           ["amenity"="pharmacy"];
         out center tags;
         """
 
-        response = requests.post(
+        # Try each Overpass server until one succeeds.
+        overpass_servers = [
             "https://overpass-api.de/api/interpreter",
-            data={"data": query},
-            headers=headers,
-            timeout=30,
-        )
-        response.raise_for_status()
+            "https://overpass.private.coffee/api/interpreter",
+            "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+        ]
+
+        response = None
+
+        for server in overpass_servers:
+            try:
+                response = requests.post(
+                    server,
+                    data={"data": query},
+                    headers=headers,
+                    timeout=15,
+                )
+                response.raise_for_status()
+                break
+            except requests.RequestException as error:
+                print(f"Overpass server failed: {server} — {error}")
+                response = None
+
+        if response is None:
+            return None
 
         pharmacies = []
 
@@ -54,7 +72,7 @@ def find_pharmacies(location):
             lat = place.get("lat")
             lon = place.get("lon")
 
-            if place["type"] == "way" or place["type"] == "relation":
+            if place["type"] in ("way", "relation"):
                 center = place.get("center", {})
                 lat = center.get("lat")
                 lon = center.get("lon")
@@ -64,7 +82,8 @@ def find_pharmacies(location):
 
             name = tags.get("name", "Unnamed pharmacy")
             address = ", ".join(
-                part for part in [
+                part
+                for part in [
                     tags.get("addr:housenumber"),
                     tags.get("addr:street"),
                     tags.get("addr:city"),
@@ -88,8 +107,6 @@ def find_pharmacies(location):
 
         return pharmacies
 
-
-    except requests.RequestException as error:
+    except (requests.RequestException, ValueError, KeyError) as error:
         print(f"Pharmacy search error: {error}")
-    return None
-
+        return None

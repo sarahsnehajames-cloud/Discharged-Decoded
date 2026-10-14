@@ -10,7 +10,7 @@ import streamlit as st
 from processing import extract_text_from_upload, extract_information
 from conversion import plain_language_conversion
 from condition_education import get_nhs_search_url
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pharmacy import find_pharmacies
 
 
@@ -167,6 +167,74 @@ UI_TEXT = {
 }
 
 
+def get_interval_hours(frequency):
+    """Return an explicitly stated hourly interval, or None if unclear."""
+    import re
+
+    if not frequency:
+        return None
+
+    match = re.search(
+        r"\b(?:every|each)\s+(\d+)\s+hours?\b",
+        frequency.lower(),
+    )
+
+    if not match:
+        return None
+
+    hours = int(match.group(1))
+
+    if 1 <= hours <= 24:
+        return hours
+
+    return None
+
+
+
+
+def get_due_doses(schedule, now=None):
+    """Find unrecorded doses whose scheduled times have arrived."""
+    if now is None:
+        now = datetime.now()
+
+    due_doses = []
+    recorded = st.session_state.get("reminder_doses", {})
+
+    for item in schedule:
+        interval = item.get("interval_hours")
+        first_time = item.get("first_dose_time")
+
+        # Only use explicit hourly instructions.
+        if not interval or not first_time:
+            continue
+
+        first_dose = datetime.combine(
+            item["start"],
+            datetime.strptime(first_time, "%H:%M").time(),
+        )
+        course_end = datetime.combine(
+            item["end"],
+            datetime.max.time(),
+        )
+
+        dose_time = first_dose
+
+        while dose_time <= now and dose_time <= course_end:
+            dose_id = f"{item['medication']}|{dose_time.isoformat()}"
+
+            if dose_id not in recorded:
+                due_doses.append({
+                    "id": dose_id,
+                    "medication": item["medication"],
+                    "dosage": item["dosage"],
+                    "due_time": dose_time,
+                })
+
+            dose_time += timedelta(hours=int(interval))
+
+    return due_doses
+
+
 
 
 def init_state():
@@ -182,6 +250,8 @@ def init_state():
         "schedule_created": False,
         "reminders_active": False,
         "selected_calendar_date": None,
+        "reminder_doses": {},
+        "reminder_last_checked": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -236,7 +306,9 @@ if st.session_state.step == 1:
 
     st.divider()
 
+    
     st.subheader("💊 Today's medication")
+
     schedule = st.session_state.get("medication_schedule", [])
     today = date.today()
 
@@ -245,14 +317,102 @@ if st.session_state.step == 1:
         if item["start"] <= today <= item["end"]
     ]
 
-    if todays_meds:
-        for item in todays_meds:
-            st.write(
-                f"**{item['medication']}** — "
-                f"{item['dosage']} · {item['frequency']}"
-            )
+    
+    if not st.session_state.get("schedule_created", False):
+        if st.session_state.get("confirmed", False):
+            st.info("Your medication details are confirmed. You can create your schedule next.")
+            if st.button("Create my medication schedule", key="home_create_schedule"):
+                st.session_state.step = 4
+                st.rerun()
+        else:
+            st.info("Upload your discharge document below to get started.")
     else:
-        st.info("No medication scheduled for today yet.")
+        if st.session_state.get("reminders_active", False):
+            st.success("Your reminder schedule is active in this app.")
+        else:
+            st.info("Your medication schedule is created, but reminders haven't been activated.")
+
+        if todays_meds:
+            now = datetime.now()
+
+            for item in todays_meds:
+                st.markdown(f"**{item['medication']}**")
+                st.write(
+                    f"Dose: {item['dosage']} · "
+                    f"Frequency: {item['frequency']}"
+                )
+
+                interval = item.get("interval_hours")
+                first_time = item.get("first_dose_time")
+
+            
+                if interval and first_time:
+                    first_dose = datetime.combine(
+                        item["start"],
+                        datetime.strptime(first_time, "%H:%M").time(),
+                    )
+                    dose_time = first_dose
+
+                    while dose_time.date() <= today and dose_time <= now:
+                        dose_id = (
+                            f"{item['medication']}|"
+                            f"{dose_time.isoformat()}"
+                        )
+                        already_taken = (
+                            st.session_state.reminder_doses.get(dose_id)
+                            == "taken"
+                        )
+
+                        checked = st.checkbox(
+                            f"{dose_time.strftime('%I:%M %p')} dose taken",
+                            value=already_taken,
+                            key=f"home_dose_{dose_id}",
+                        )
+
+                        if checked and not already_taken:
+                            st.session_state.reminder_doses[dose_id] = "taken"
+                            st.rerun()
+                        elif not checked and already_taken:
+                            st.session_state.reminder_doses.pop(dose_id, None)
+                            st.rerun()
+
+                        dose_time += timedelta(hours=int(interval))
+
+                else:
+                    dose_id = f"{item['medication']}|{today.isoformat()}"
+
+                    already_taken = (
+                        st.session_state.reminder_doses.get(dose_id)
+                        == "taken"
+                    )
+
+                    checked = st.checkbox(
+                        "I've taken this medication today",
+                        value=already_taken,
+                        key=f"home_daily_{dose_id}",
+                    )
+
+                    if checked and not already_taken:
+                        st.session_state.reminder_doses[dose_id] = "taken"
+                        st.rerun()
+                    elif not checked and already_taken:
+                        st.session_state.reminder_doses.pop(dose_id, None)
+                        st.rerun()
+
+        else:
+            st.info("No medication courses are scheduled for today.")
+
+        if st.button("View full medication calendar", key="home_view_calendar"):
+            st.session_state.step = 4
+            st.rerun()
+
+        if st.session_state.get("reminders_active", False):
+            st.caption(
+                "This app does not yet send notifications when it is closed. "
+                "Follow the timing instructions on your prescription."
+            )
+
+
 
     st.divider()
 
@@ -273,13 +433,11 @@ if st.session_state.step == 1:
                 try:
                     raw = uploaded.getvalue()
                     text = extract_text_from_upload(raw, uploaded.name)
-                    st.text_area("DEBUG: Extracted document text", text, height=300)
                     if not text.strip():
                         st.error("No readable text was found. Try a clearer photo or a higher-quality document.")
                     else:
                         st.session_state.filename = uploaded.name
                         st.session_state.ocr_text = text
-                        st.write("DEBUG — raw extracted document text:", text)
                         st.session_state.extracted = extract_information(text)
                         st.session_state.confirmed = False
                         st.session_state.step = 2
@@ -348,7 +506,6 @@ elif st.session_state.step == 3:
     if not st.session_state.plain_language:
         with st.spinner("Preparing your summary..."):
             try:
-                st.write("DEBUG — confirmed information:", st.session_state.extracted)
                 st.session_state.plain_language = plain_language_conversion(
                     st.session_state.extracted
                 )
@@ -360,7 +517,6 @@ elif st.session_state.step == 3:
         with st.container(border=True):
             st.markdown("## Your discharge summary")
             st.markdown(st.session_state.plain_language)
-            st.code(st.session_state.plain_language)
     else:
         st.warning(
             "No summary is available yet. Please review the confirmed information."
@@ -407,6 +563,14 @@ elif st.session_state.step == 4:
         key="calendar_start_date",
     )
 
+    
+    first_dose_time = st.time_input(
+        "First dose time (confirm against your prescription)",
+        value=datetime.strptime("08:00", "%H:%M").time(),
+        key="calendar_first_dose_time",
+    )
+
+
     medications = st.session_state.extracted.get("medications", [])
 
     if not medications:
@@ -434,13 +598,20 @@ elif st.session_state.step == 4:
                 help="Enter the duration stated on your prescription.",
             )
 
+            
+            frequency = med.get("frequency") or "Not specified"
+            interval_hours = get_interval_hours(frequency)
+
             confirmed_schedule.append({
                 "medication": med.get("medication") or f"Medicine {i + 1}",
                 "dosage": med.get("dosage") or "Not specified",
-                "frequency": med.get("frequency") or "Not specified",
+                "frequency": frequency,
+                "interval_hours": interval_hours,
+                "first_dose_time": first_dose_time.strftime("%H:%M"),
                 "start": start_date,
                 "end": start_date + timedelta(days=int(duration_days) - 1),
             })
+
 
         if st.button("Create my schedule", type="primary"):
             st.session_state.medication_schedule = confirmed_schedule
@@ -536,6 +707,32 @@ elif st.session_state.step == 4:
                 "when the app is closed."
             )
 
+            
+            due_doses = get_due_doses(
+                st.session_state.medication_schedule
+            )
+
+            if due_doses:
+                st.warning(" You have medication doses due or overdue.")
+
+                for dose in due_doses:
+                    st.markdown(f"**{dose['medication']}**")
+                    st.write(f"Dose: {dose['dosage']}")
+                    st.write(
+                        f"Scheduled for: "
+                        f"{dose['due_time'].strftime('%d %b, %I:%M %p')}"
+                    )
+
+                    if st.button(
+                        "Mark as taken",
+                        key=f"taken_{dose['id']}",
+                    ):
+                        st.session_state.reminder_doses[dose["id"]] = "taken"
+                        st.rerun()
+
+
+
+
 
         if st.button("Continue to condition education →", type="primary"):
             st.session_state.step = 5
@@ -616,10 +813,16 @@ elif st.session_state.step == 6:
                 pharmacies = find_pharmacies(location)
 
             if pharmacies is None:
-                st.error(
-                    "The pharmacy search is temporarily unavailable. "
-                    "Please try again later."
+                st.warning(
+                    "The nearby pharmacy search is temporarily unavailable. "
                 )
+                st.link_button(
+                    "Find a pharmacy on the NHS website",
+                    "https://www.nhs.uk/service-search/pharmacy/find-a-pharmacy/",
+                )
+
+                
+                
             elif not pharmacies:
                 st.info(
                     "No pharmacies were found nearby. "
