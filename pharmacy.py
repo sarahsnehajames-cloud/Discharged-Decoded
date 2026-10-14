@@ -88,5 +88,8 @@ def find_pharmacies(location):
 
         return pharmacies
 
-    except requests.RequestException:
-        return None
+
+    except requests.RequestException as error:
+        print(f"Pharmacy search error: {error}")
+    return None
+
