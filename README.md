@@ -1,21 +1,12 @@
-# Discharged-Decoded
+# **Discharged-Decoded**
 
-Discharged, Decoded is an AI-powered application designed to help patients better understand their hospital discharge documents.
-Users can upload a photo or PDF of their discharge paperwork. The application extracts relevant information from the document, allows the user to review and confirm the extracted information, and then presents the confirmed information in a clear and accessible format.
+Discharged, Decoded is an AI-powered application designed to help patients better understand their hospital discharge documents. Users can upload a photo or PDF of their discharge paperwork. The application extracts relevant information from the document, allows the user to review and confirm the extracted information, and then presents the confirmed information in a clear and accessible format.
 
-## Core Flow
+## **Core Flow**
 
 Upload → OCR → Information Extraction → Review & Confirmation → Plain-Language Conversion → Reminders → Condition Education → Pharmacy Lookup → Notifications
 
-## Running the Application
-
-Run with:
-pip install -r requirements.txt
-streamlit run app.py
-
-python -m pip install requests
-
-## Key Features
+## **Key Features**
 
 - Upload discharge documents as photos or PDFs
 - OCR-based text extraction
@@ -30,23 +21,22 @@ python -m pip install requests
 - Medication reminder notifications
 - Automatic reminder completion when the medication duration ends
 
-## Technology
+## **Technology**
 
-The application is being developed primarily with Python.
-Planned technologies and services will be documented as development progresses.
+The application is being developed primarily with Python. Planned technologies and services will be documented as development progresses.
 
-## Project Structure
+## **Project Structure**
 
 The project will be organized into frontend, backend, utility, and testing components.
 
-## Team
+## **Team**
 
 Built by the Codeine hackathon team of GatewayHacks-2026.
 
-## Development Status
+## **Development Status**
 
 🚧 Currently in development.
 
-## Disclaimer
+## **Disclaimer**
 
 Discharged-Decoded is designed to help users understand information contained in their discharge documents. It is not a replacement for professional medical advice.
