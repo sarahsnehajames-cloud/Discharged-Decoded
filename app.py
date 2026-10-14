@@ -608,34 +608,35 @@ elif st.session_state.step == 6:
     
     if st.button("Find pharmacies", type="primary"):
         location = pharmacy_location.strip()
+
         if not location:
-                st.warning("Please enter a postcode or town.")
+            st.warning("Please enter a postcode or town.")
         else:
             with st.spinner("Searching for nearby pharmacies..."):
-                    pharmacies = find_pharmacies(location)
+                pharmacies = find_pharmacies(location)
 
-        if pharmacies is None:
-                    st.error(
-                        "The pharmacy search is temporarily unavailable. "
-                        "Please try again later."
-                    )
-        elif not pharmacies:
-                    st.info(
-                        "No pharmacies were found nearby. "
-                        "Try a nearby town or a different postcode."
-                    )
-        else:
-                    st.success(f"Found {len(pharmacies)} pharmacies.")
+            if pharmacies is None:
+                st.error(
+                    "The pharmacy search is temporarily unavailable. "
+                    "Please try again later."
+                )
+            elif not pharmacies:
+                st.info(
+                    "No pharmacies were found nearby. "
+                    "Try a nearby town or a different postcode."
+                )
+            else:
+                st.success(f"Found {len(pharmacies)} pharmacies.")
 
-        for i, pharmacy in enumerate(pharmacies):
-            with st.container(border=True):
-                            st.subheader(pharmacy["name"])
-                            st.write(pharmacy["address"])
-                            st.link_button(
-                                "Get directions",
-                                pharmacy["directions"],
-                                key=f"pharmacy_directions_{i}",
-                            )
+                for i, pharmacy in enumerate(pharmacies):
+                    with st.container(border=True):
+                        st.subheader(pharmacy["name"])
+                        st.write(pharmacy["address"])
+                        st.link_button(
+                            "Get directions",
+                            pharmacy["directions"],
+                            key=f"pharmacy_directions_{i}",
+                        )
 
     st.caption(
                 "Pharmacy information comes from OpenStreetMap "
