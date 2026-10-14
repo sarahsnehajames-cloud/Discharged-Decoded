@@ -9,6 +9,71 @@ import streamlit as st
 
 from processing import extract_text_from_upload, extract_information
 from conversion import plain_language_conversion
+from condition_education import get_nhs_search_url
+
+
+
+# Discharged, Decoded — colour theme
+st.markdown("""
+<style>
+/* Main app background */
+.stApp {
+    background-color: #FFFFFF;
+}
+
+/* Main app title and section headings */
+h1, h2, h3 {
+    color: #7254A5 !important;
+}
+
+/* Soft blue brand banner */
+.brand-banner {
+    background-color: #EAF3FC;
+    padding: 24px 28px;
+    border-radius: 16px;
+    border-left: 6px solid #7254A5;
+    margin-bottom: 24px;
+}
+
+/* Brand title */
+.brand-banner h1 {
+    color: #7254A5 !important;
+    margin: 0;
+    font-size: 2rem;
+}
+
+/* Brand subtitle */
+.brand-banner p {
+    color: #29283A;
+    margin: 8px 0 0 0;
+    font-size: 1rem;
+}
+
+/* Light lavender medication cards */
+.st-key-med-card {
+    background-color: #F7F8FC;
+    border: 1px solid #E4DDF0;
+    border-radius: 14px;
+    padding: 18px;
+    margin: 12px 0;
+}
+
+/* Purple buttons */
+.stButton > button {
+    background-color: #7254A5;
+    color: white;
+    border: none;
+    border-radius: 10px;
+}
+
+/* Visible keyboard focus */
+.stButton > button:focus-visible {
+    outline: 3px solid #29283A;
+    outline-offset: 3px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 st.set_page_config(page_title="Discharged, Decoded", page_icon="💊", layout="centered")
 
@@ -45,7 +110,13 @@ def reset():
 init_state()
 
 # Header
-st.title("Discharged, Decoded")
+
+st.markdown("""
+<div class="brand-banner">
+    <h1>Discharged, Decoded</h1>
+    <p>Your discharge information, made clearer.</p>
+</div>
+""", unsafe_allow_html=True)
 st.caption("Turn discharge paperwork into information that is easier to understand.")
 
 # UI language only. Medical content is deliberately not translated here.
@@ -76,11 +147,13 @@ if st.session_state.step == 1:
                 try:
                     raw = uploaded.getvalue()
                     text = extract_text_from_upload(raw, uploaded.name)
+                    st.text_area("DEBUG: Extracted document text", text, height=300)
                     if not text.strip():
                         st.error("No readable text was found. Try a clearer photo or a higher-quality document.")
                     else:
                         st.session_state.filename = uploaded.name
                         st.session_state.ocr_text = text
+                        st.write("DEBUG — raw extracted document text:", text)
                         st.session_state.extracted = extract_information(text)
                         st.session_state.confirmed = False
                         st.session_state.step = 2
@@ -133,28 +206,44 @@ elif st.session_state.step == 2:
                 "condition_or_procedure": condition,
                 "other_instructions": other_instructions,
             }
+            st.session_state.plain_language = ""
             st.session_state.confirmed = True
             st.session_state.step = 3
             st.rerun()
 
+
 elif st.session_state.step == 3:
     st.subheader("Plain-language summary")
-    st.success("Information confirmed. Medical details below are based only on the confirmed fields.")
+    st.success(
+        "Information confirmed. Medical details below are based only "
+        "on the confirmed fields."
+    )
 
     if not st.session_state.plain_language:
-        with st.spinner("Converting the confirmed information into clearer language..."):
+        with st.spinner("Preparing your summary..."):
             try:
-                st.session_state.plain_language = plain_language_conversion(st.session_state.extracted)
+                st.write("DEBUG — confirmed information:", st.session_state.extracted)
+                st.session_state.plain_language = plain_language_conversion(
+                    st.session_state.extracted
+                )
             except Exception as exc:
-                st.session_state.plain_language = ""
                 st.error(f"Plain-language conversion could not run: {exc}")
 
+    
     if st.session_state.plain_language:
-        st.markdown(st.session_state.plain_language)
+        with st.container(border=True):
+            st.markdown("## Your discharge summary")
+            st.markdown(st.session_state.plain_language)
+            st.code(st.session_state.plain_language)
     else:
-        st.warning("No conversion is available yet. Check that an AI provider is configured.")
+        st.warning(
+            "No summary is available yet. Please review the confirmed information."
+        )
 
-    st.warning("This is a plain-language explanation, not a replacement for the discharge document or advice from a clinician.")
+    st.warning(
+        "This is a plain-language explanation, not a replacement for "
+        "the discharge document or advice from a clinician."
+    )
 
     c1, c2 = st.columns(2)
     with c1:
@@ -162,20 +251,57 @@ elif st.session_state.step == 3:
             st.session_state.step = 2
             st.session_state.plain_language = ""
             st.rerun()
+
     with c2:
-        if st.button("Continue to education →", type="primary", use_container_width=True):
+        if st.button(
+            "Continue to education →",
+            type="primary",
+            use_container_width=True,
+        ):
             st.session_state.step = 4
             st.rerun()
 
+
+
 elif st.session_state.step == 4:
     st.subheader("Condition education")
-    condition = st.session_state.extracted.get("condition_or_procedure", "the condition or procedure")
-    st.write(f"General information about: **{condition}**")
-    st.info("Condition education is a separate module. It should use the confirmed condition/procedure and clearly distinguish general information from patient-specific medical advice.")
-    st.write("The confirmed information and plain-language summary are ready for the next team module.")
 
-    if st.button("Start another document", type="primary", use_container_width=True):
+    condition = (
+        st.session_state.extracted.get("condition_or_procedure") or ""
+    ).strip()
+
+    if condition:
+        st.write(f"General information about: **{condition}**")
+
+        st.info(
+            "This section links to general NHS health information. "
+            "It does not replace your discharge instructions or "
+            "personal advice from your healthcare professional."
+        )
+
+        st.link_button(
+            "Search NHS information about this condition",
+            get_nhs_search_url(condition),
+            use_container_width=True,
+        )
+    else:
+        st.warning(
+            "No confirmed condition or procedure was found. "
+            "Please check the discharge information before searching."
+        )
+
+    st.link_button(
+        "Browse NHS Health A to Z",
+        "https://www.nhs.uk/health-a-to-z/",
+    )
+
+    if st.button(
+        "Start another document",
+        type="primary",
+        use_container_width=True,
+    ):
         reset()
+
 
 st.divider()
 st.caption("Prototype: always check the original discharge document and follow instructions from your healthcare team.")
