@@ -13,71 +13,186 @@ from condition_education import get_nhs_search_url
 from datetime import date, datetime, timedelta
 from pharmacy import find_pharmacies
 
+st.set_page_config(
+    page_title="Discharged, Decoded",
+    page_icon="💊",
+    layout="wide",
+)
 
 
-# Discharged, Decoded — colour theme
+
+
+# Discharged, Decoded — accessible purple colour theme
 st.markdown("""
 <style>
-/* Main app background */
+/* Main app background and default text */
 .stApp {
     background-color: #FFFFFF;
+    color: #241B2B;
 }
 
-/* Main app title and section headings */
-h1, h2, h3 {
-    color: #7254A5 !important;
+/* Dark, readable body text throughout the app */
+.stApp p,
+.stApp li,
+.stApp label,
+.stApp span,
+.stApp div,
+.stApp .stMarkdown {
+    color: #241B2B;
 }
 
-/* Soft blue brand banner */
+/* Headings: deep purple for strong contrast */
+.stApp h1,
+.stApp h2,
+.stApp h3,
+.stApp h4,
+.stApp h5,
+.stApp h6 {
+    color: #45205F !important;
+}
+
+/* Brand banner: soft lilac rather than pale blue */
 .brand-banner {
-    background-color: #EAF3FC;
+    background-color: #E9DDF5;
     padding: 24px 28px;
     border-radius: 16px;
-    border-left: 6px solid #7254A5;
+    border-left: 6px solid #45205F;
     margin-bottom: 24px;
 }
 
 /* Brand title */
 .brand-banner h1 {
-    color: #7254A5 !important;
+    color: #45205F !important;
     margin: 0;
     font-size: 2rem;
 }
 
 /* Brand subtitle */
 .brand-banner p {
-    color: #29283A;
+    color: #241B2B !important;
     margin: 8px 0 0 0;
     font-size: 1rem;
 }
 
-/* Light lavender medication cards */
+/* Medication cards */
 .st-key-med-card {
-    background-color: #F7F8FC;
-    border: 1px solid #E4DDF0;
+    background-color: #F7F2FB;
+    border: 1px solid #D8C4EA;
     border-radius: 14px;
     padding: 18px;
     margin: 12px 0;
 }
 
-/* Purple buttons */
+/* Buttons: dark purple with white text */
 .stButton > button {
-    background-color: #7254A5;
-    color: white;
-    border: none;
+    background-color: #45205F;
+    color: #FFFFFF !important;
+    border: 1px solid #45205F;
     border-radius: 10px;
 }
 
+/* Keep button text white in different states */
+.stButton > button p,
+.stButton > button span {
+    color: #FFFFFF !important;
+}
+
+.stButton > button:hover {
+    background-color: #351649;
+    border-color: #351649;
+    color: #FFFFFF !important;
+}
+
+/* Input fields: white background and dark text */
+.stTextInput input,
+.stTextArea textarea,
+.stNumberInput input,
+.stDateInput input {
+    background-color: #FFFFFF;
+    color: #241B2B !important;
+    border-color: #8B72A6;
+}
+
+/* Dropdowns and selected controls */
+.stSelectbox div[data-baseweb="select"] {
+    background-color: #FFFFFF;
+}
+
+/* Placeholder text: readable but distinguishable */
+.stApp input::placeholder,
+.stApp textarea::placeholder {
+    color: #62576B !important;
+    opacity: 1;
+}
+
 /* Visible keyboard focus */
-.stButton > button:focus-visible {
-    outline: 3px solid #29283A;
+.stButton > button:focus-visible,
+.stApp input:focus-visible,
+.stApp textarea:focus-visible {
+    outline: 3px solid #7254A5;
     outline-offset: 3px;
+}
+
+/* Links */
+.stApp a {
+    color: #54217A !important;
+    text-decoration: underline;
+}
+
+/* Home screen feature cards */
+.feature-card {
+    background-color: #F7F2FB;
+    border: 1px solid #D8C4EA;
+    border-top: 5px solid #7254A5;
+    border-radius: 16px;
+    padding: 22px;
+    min-height: 145px;
+    margin-bottom: 16px;
+}
+
+.feature-card h3 {
+    color: #45205F !important;
+    font-size: 1.15rem;
+    margin-top: 0;
+}
+
+.feature-card p {
+    color: #241B2B !important;
+    line-height: 1.6;
+    margin-bottom: 0;
+}
+
+/* Upload section heading panel */
+.upload-panel {
+    background-color: #F7F2FB;
+    border: 1px solid #D8C4EA;
+    border-radius: 16px;
+    padding: 24px;
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+.upload-panel h2 {
+    color: #45205F !important;
+    margin-top: 0;
+}
+
+.upload-panel p {
+    color: #241B2B !important;
+    line-height: 1.6;
+}
+/* Very light lilac home dashboard boxes */
+.st-key-home_medication_box,
+.st-key-home_schedule_box {
+    background-color: #F7F2FB;
+    border: 1px solid #D8C4EA;
+    border-radius: 16px;
+    padding: 18px;
 }
 </style>
 """, unsafe_allow_html=True)
 
 
-st.set_page_config(page_title="Discharged, Decoded", page_icon="💊", layout="centered")
 
 LANGUAGES = {
     "English": "en",
@@ -297,144 +412,235 @@ if st.session_state.step != 1:
         st.session_state.step = 1
         st.rerun()
 
+
 if st.session_state.step == 1:
-    st.subheader(":material/home: Home")
 
-    if st.button("📅 View medication schedule", use_container_width=True):
-        st.session_state.step = 4
-        st.rerun()
+    # Two-column home dashboard
+    left_box, right_box = st.columns(2, gap="medium")
 
-    st.divider()
+    # LEFT BOX: Today's medication and checklist
+    with left_box:  
+        with st.container(
+            border=True,
+            key="home_medication_box",
+        ):
+            st.subheader("💊 Today's medication")
 
-    
-    st.subheader("💊 Today's medication")
+            schedule = st.session_state.get(
+                "medication_schedule", []
+            )
+            today = date.today()
 
-    schedule = st.session_state.get("medication_schedule", [])
-    today = date.today()
+            todays_meds = [
+                item for item in schedule
+                if item["start"] <= today <= item["end"]
+            ]
 
-    todays_meds = [
-        item for item in schedule
-        if item["start"] <= today <= item["end"]
-    ]
-
-    
-    if not st.session_state.get("schedule_created", False):
-        if st.session_state.get("confirmed", False):
-            st.info("Your medication details are confirmed. You can create your schedule next.")
-            if st.button("Create my medication schedule", key="home_create_schedule"):
-                st.session_state.step = 4
-                st.rerun()
-        else:
-            st.info("Upload your discharge document below to get started.")
-    else:
-        if st.session_state.get("reminders_active", False):
-            st.success("Your reminder schedule is active in this app.")
-        else:
-            st.info("Your medication schedule is created, but reminders haven't been activated.")
-
-        if todays_meds:
-            now = datetime.now()
-
-            for item in todays_meds:
-                st.markdown(f"**{item['medication']}**")
-                st.write(
-                    f"Dose: {item['dosage']} · "
-                    f"Frequency: {item['frequency']}"
-                )
-
-                interval = item.get("interval_hours")
-                first_time = item.get("first_dose_time")
-
-            
-                if interval and first_time:
-                    first_dose = datetime.combine(
-                        item["start"],
-                        datetime.strptime(first_time, "%H:%M").time(),
+            if not st.session_state.get("schedule_created", False):
+                if st.session_state.get("confirmed", False):
+                    st.info(
+                        "Your medication details are confirmed. "
+                        "Create your schedule to see today's medication."
                     )
-                    dose_time = first_dose
+                else:
+                    st.info(
+                        "Upload your discharge document below "
+                        "and confirm your medication details to get started."
+                    )
 
-                    while dose_time.date() <= today and dose_time <= now:
-                        dose_id = (
-                            f"{item['medication']}|"
-                            f"{dose_time.isoformat()}"
+            else:
+                if st.session_state.get("reminders_active", False):
+                    st.success("Your reminder schedule is active in this app.")
+                else:
+                    st.info(
+                        "Your schedule is created, but reminders "
+                        "haven't been activated."
+                    )
+
+                if todays_meds:
+                    now = datetime.now()
+
+                    for item in todays_meds:
+                        st.markdown(f"**{item['medication']}**")
+                        st.write(
+                            f"Dose: {item['dosage']} · "
+                            f"Frequency: {item['frequency']}"
                         )
-                        already_taken = (
-                            st.session_state.reminder_doses.get(dose_id)
-                            == "taken"
-                        )
 
-                        checked = st.checkbox(
-                            f"{dose_time.strftime('%I:%M %p')} dose taken",
-                            value=already_taken,
-                            key=f"home_dose_{dose_id}",
-                        )
+                        interval = item.get("interval_hours")
+                        first_time = item.get("first_dose_time")
 
-                        if checked and not already_taken:
-                            st.session_state.reminder_doses[dose_id] = "taken"
-                            st.rerun()
-                        elif not checked and already_taken:
-                            st.session_state.reminder_doses.pop(dose_id, None)
-                            st.rerun()
+                        if interval and first_time:
+                            first_dose = datetime.combine(
+                                item["start"],
+                                datetime.strptime(
+                                    first_time, "%H:%M"
+                                ).time(),
+                            )
+                            dose_time = first_dose
 
-                        dose_time += timedelta(hours=int(interval))
+                            while (
+                                dose_time.date() <= today
+                                and dose_time <= now
+                                and dose_time.date() <= item["end"]
+                            ):
+                                dose_id = (
+                                    f"{item['medication']}|"
+                                    f"{dose_time.isoformat()}"
+                                )
+
+                                already_taken = (
+                                    st.session_state.reminder_doses.get(
+                                        dose_id
+                                    ) == "taken"
+                                )
+
+                                checked = st.checkbox(
+                                    f"{dose_time.strftime('%I:%M %p')} dose taken",
+                                    value=already_taken,
+                                    key=f"home_dose_{dose_id}",
+                                )
+
+                                if checked and not already_taken:
+                                    st.session_state.reminder_doses[
+                                        dose_id
+                                    ] = "taken"
+                                    st.rerun()
+
+                                elif not checked and already_taken:
+                                    st.session_state.reminder_doses.pop(
+                                        dose_id, None
+                                    )
+                                    st.rerun()
+
+                                dose_time += timedelta(hours=int(interval))
+
+                        else:
+                            dose_id = (
+                                f"{item['medication']}|{today.isoformat()}"
+                            )
+
+                            already_taken = (
+                                st.session_state.reminder_doses.get(
+                                    dose_id
+                                ) == "taken"
+                            )
+
+                            checked = st.checkbox(
+                                "I've taken this medication today",
+                                value=already_taken,
+                                key=f"home_daily_{dose_id}",
+                            )
+
+                            if checked and not already_taken:
+                                st.session_state.reminder_doses[
+                                    dose_id
+                                ] = "taken"
+                                st.rerun()
+
+                            elif not checked and already_taken:
+                                st.session_state.reminder_doses.pop(
+                                    dose_id, None
+                                )
+                                st.rerun()
 
                 else:
-                    dose_id = f"{item['medication']}|{today.isoformat()}"
+                    st.info("No medication courses are scheduled for today.")
 
-                    already_taken = (
-                        st.session_state.reminder_doses.get(dose_id)
-                        == "taken"
+                if st.session_state.get("reminders_active", False):
+                    st.caption(
+                        "This app does not send notifications when closed. "
+                        "Follow the timing instructions on your prescription."
                     )
 
-                    checked = st.checkbox(
-                        "I've taken this medication today",
-                        value=already_taken,
-                        key=f"home_daily_{dose_id}",
-                    )
+    # RIGHT BOX: Medication schedule
+    # RIGHT BOX: Medication schedule
+    with right_box:
+        with st.container(
+            border=True,
+            key="home_schedule_box",
+        ):
+            st.subheader("📅 Your medication schedule")
 
-                    if checked and not already_taken:
-                        st.session_state.reminder_doses[dose_id] = "taken"
-                        st.rerun()
-                    elif not checked and already_taken:
-                        st.session_state.reminder_doses.pop(dose_id, None)
-                        st.rerun()
+            if st.session_state.get("schedule_created", False):
+                st.write(
+                    "Your medication schedule has been created. "
+                    "Open your calendar to review planned doses."
+                )
+            elif st.session_state.get("confirmed", False):
+                st.write(
+                    "Your medication details are confirmed. "
+                    "Create a schedule based on your prescription."
+                )
+            else:
+                st.write(
+                    "Upload your discharge paperwork and confirm "
+                    "your medication details before creating a schedule."
+                )
 
-        else:
-            st.info("No medication courses are scheduled for today.")
+            if st.button(
+                "📅 View medication schedule",
+                use_container_width=True,
+                key="home_view_medication_schedule",
+            ):
+                st.session_state.step = 4
+                st.rerun()
 
-        if st.button("View full medication calendar", key="home_view_calendar"):
-            st.session_state.step = 4
-            st.rerun()
+            if (
+                st.session_state.get("confirmed", False)
+                and not st.session_state.get("schedule_created", False)
+            ):
+                if st.button(
+                    "Create my medication schedule",
+                    use_container_width=True,
+                    key="home_create_schedule",
+                ):
+                    st.session_state.step = 4
+                    st.rerun()
 
-        if st.session_state.get("reminders_active", False):
-            st.caption(
-                "This app does not yet send notifications when it is closed. "
-                "Follow the timing instructions on your prescription."
-            )
+    # FULL-WIDTH UPLOAD SECTION
+    st.markdown("---")
 
-
-
-    st.divider()
-
-    st.subheader(ui["upload"])
-
-    st.write("Upload a PDF, Word document, or image of your discharge paperwork.")
+    st.markdown(
+        f"""
+        <div class="upload-panel">
+            <h2>📤 {ui["upload"]}</h2>
+            <p>Upload a PDF, Word document, or image of your
+            discharge paperwork to get started.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     uploaded = st.file_uploader(
         "Upload Photo / PDF",
-        type=["pdf", "docx", "png", "jpg", "jpeg", "webp", "tif", "tiff"],
+        type=[
+            "pdf", "docx", "png", "jpg", "jpeg",
+            "webp", "tif", "tiff"
+        ],
         accept_multiple_files=False,
     )
 
     if uploaded:
         st.success(f"Selected: {uploaded.name}")
-        if st.button(ui["process"], type="primary", use_container_width=True):
+
+        if st.button(
+            ui["process"],
+            type="primary",
+            use_container_width=True,
+        ):
             with st.spinner("Reading your document..."):
                 try:
                     raw = uploaded.getvalue()
-                    text = extract_text_from_upload(raw, uploaded.name)
+                    text = extract_text_from_upload(
+                        raw, uploaded.name
+                    )
+
                     if not text.strip():
-                        st.error("No readable text was found. Try a clearer photo or a higher-quality document.")
+                        st.error(
+                            "No readable text was found. Try a clearer "
+                            "photo or a higher-quality document."
+                        )
                     else:
                         st.session_state.filename = uploaded.name
                         st.session_state.ocr_text = text
@@ -442,11 +648,17 @@ if st.session_state.step == 1:
                         st.session_state.confirmed = False
                         st.session_state.step = 2
                         st.rerun()
-                except Exception as exc:
-                    st.error(f"The document could not be processed: {exc}")
 
-    st.divider()
-    st.info("For photographs, use good lighting and keep the page flat and in focus.")
+                except Exception as exc:
+                    st.error(
+                        f"The document could not be processed: {exc}"
+                    )
+
+    st.info(
+        "For photographs, use good lighting and keep the page flat "
+        "and in focus."
+    )
+
 
 elif st.session_state.step == 2:
     st.subheader(ui["review"])
