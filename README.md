@@ -13,7 +13,7 @@ Run with:
 pip install -r requirements.txt
 streamlit run app.py
 
-
+python -m pip install requests
 
 ## Key Features
 

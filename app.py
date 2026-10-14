@@ -10,6 +10,8 @@ import streamlit as st
 from processing import extract_text_from_upload, extract_information
 from conversion import plain_language_conversion
 from condition_education import get_nhs_search_url
+from datetime import date, timedelta
+from pharmacy import find_pharmacies
 
 
 
@@ -86,6 +88,87 @@ LANGUAGES = {
 }
 
 
+UI_TEXT = {
+    "English": {
+        "tagline": "Your discharge information, made clearer.",
+        "caption": "Turn discharge paperwork into information that is easier to understand.",
+        "language": "Language",
+        "upload": "Upload discharge",
+        "review": "Review extracted information",
+        "summary": "Plain-language summary",
+        "education": "Condition education",
+        "process": "Process document",
+        "confirm": "Confirm information",
+        "edit": "← Edit confirmed information",
+        "continue": "Continue to education →",
+        "start_again": "Start another document",
+        "reupload": "← Re-upload",
+    },
+    "Español": {
+        "tagline": "La información de alta médica, más clara.",
+        "caption": "Convierte los documentos de alta en información más fácil de entender.",
+        "language": "Idioma",
+        "upload": "Subir documento de alta",
+        "review": "Revisar la información extraída",
+        "summary": "Resumen en lenguaje sencillo",
+        "education": "Información sobre la enfermedad",
+        "process": "Procesar documento",
+        "confirm": "Confirmar información",
+        "edit": "← Editar información confirmada",
+        "continue": "Continuar a la información →",
+        "start_again": "Empezar otro documento",
+        "reupload": "← Volver a subir",
+    },
+    "Français": {
+        "tagline": "Vos informations de sortie, plus faciles à comprendre.",
+        "caption": "Rendez les documents de sortie plus faciles à comprendre.",
+        "language": "Langue",
+        "upload": "Importer le document de sortie",
+        "review": "Vérifier les informations extraites",
+        "summary": "Résumé en langage simple",
+        "education": "Informations sur la maladie",
+        "process": "Traiter le document",
+        "confirm": "Confirmer les informations",
+        "edit": "← Modifier les informations confirmées",
+        "continue": "Continuer vers les informations →",
+        "start_again": "Commencer un autre document",
+        "reupload": "Importer à nouveau",
+    },
+    "中文": {
+        "tagline": "让您的出院信息更清晰易懂。",
+        "caption": "将出院文件转换为更容易理解的信息。",
+        "language": "语言",
+        "upload": "上传出院文件",
+        "review": "检查提取的信息",
+        "summary": "通俗易懂的摘要",
+        "education": "疾病信息",
+        "process": "处理文件",
+        "confirm": "确认信息",
+        "edit": "← 编辑已确认的信息",
+        "continue": "继续查看健康信息 →",
+        "start_again": "开始处理另一份文件",
+        "reupload": "重新上传",
+    },
+    "العربية": {
+        "tagline": "معلومات خروجك من المستشفى بشكل أوضح.",
+        "caption": "حوّل مستندات الخروج إلى معلومات أسهل للفهم.",
+        "language": "اللغة",
+        "upload": "تحميل مستند الخروج",
+        "review": "مراجعة المعلومات المستخرجة",
+        "summary": "ملخص بلغة بسيطة",
+        "education": "معلومات عن الحالة الصحية",
+        "process": "معالجة المستند",
+        "confirm": "تأكيد المعلومات",
+        "edit": "← تعديل المعلومات المؤكدة",
+        "continue": "المتابعة إلى التثقيف الصحي →",
+        "start_again": "البدء بمستند آخر",
+        "reupload": "إعادة التحميل",
+    },
+}
+
+
+
+
 def init_state():
     defaults = {
         "step": 1,
@@ -95,10 +178,15 @@ def init_state():
         "confirmed": False,
         "plain_language": "",
         "language": "English",
+        "medication_schedule": [],
+        "schedule_created": False,
+        "reminders_active": False,
+        "selected_calendar_date": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+
 
 
 def reset():
@@ -119,6 +207,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 st.caption("Turn discharge paperwork into information that is easier to understand.")
 
+
 # UI language only. Medical content is deliberately not translated here.
 st.session_state.language = st.selectbox(
     "Language",
@@ -127,11 +216,48 @@ st.session_state.language = st.selectbox(
     help="This changes the app interface. It does not automatically translate the medical instructions.",
 )
 
-st.progress(st.session_state.step / 4)
-st.caption(f"Step {st.session_state.step} of 4")
+ui = UI_TEXT[st.session_state.language]
+
+
+st.progress(st.session_state.step / 6)
+st.caption(f"Step {st.session_state.step} of 6")
+
+if st.session_state.step != 1:
+    if st.button(":material/home: Home", key="global_home"):
+        st.session_state.step = 1
+        st.rerun()
 
 if st.session_state.step == 1:
-    st.subheader("Upload discharge")
+    st.subheader(":material/home: Home")
+
+    if st.button("📅 View medication schedule", use_container_width=True):
+        st.session_state.step = 4
+        st.rerun()
+
+    st.divider()
+
+    st.subheader("💊 Today's medication")
+    schedule = st.session_state.get("medication_schedule", [])
+    today = date.today()
+
+    todays_meds = [
+        item for item in schedule
+        if item["start"] <= today <= item["end"]
+    ]
+
+    if todays_meds:
+        for item in todays_meds:
+            st.write(
+                f"**{item['medication']}** — "
+                f"{item['dosage']} · {item['frequency']}"
+            )
+    else:
+        st.info("No medication scheduled for today yet.")
+
+    st.divider()
+
+    st.subheader(ui["upload"])
+
     st.write("Upload a PDF, Word document, or image of your discharge paperwork.")
 
     uploaded = st.file_uploader(
@@ -142,7 +268,7 @@ if st.session_state.step == 1:
 
     if uploaded:
         st.success(f"Selected: {uploaded.name}")
-        if st.button("Process document", type="primary", use_container_width=True):
+        if st.button(ui["process"], type="primary", use_container_width=True):
             with st.spinner("Reading your document..."):
                 try:
                     raw = uploaded.getvalue()
@@ -165,7 +291,7 @@ if st.session_state.step == 1:
     st.info("For photographs, use good lighting and keep the page flat and in focus.")
 
 elif st.session_state.step == 2:
-    st.subheader("Review extracted information")
+    st.subheader(ui["review"])
     st.caption(f"Source: {st.session_state.filename}")
 
     extracted = st.session_state.extracted
@@ -196,11 +322,11 @@ elif st.session_state.step == 2:
 
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("← Re-upload", use_container_width=True):
+        if st.button(ui["reupload"], use_container_width=True):
             st.session_state.step = 1
             st.rerun()
     with c2:
-        if st.button("Confirm information", type="primary", use_container_width=True):
+        if st.button(ui["confirm"], type="primary", use_container_width=True):
             st.session_state.extracted = {
                 "medications": edited_meds,
                 "condition_or_procedure": condition,
@@ -213,7 +339,7 @@ elif st.session_state.step == 2:
 
 
 elif st.session_state.step == 3:
-    st.subheader("Plain-language summary")
+    st.subheader(ui["summary"])
     st.success(
         "Information confirmed. Medical details below are based only "
         "on the confirmed fields."
@@ -247,24 +373,177 @@ elif st.session_state.step == 3:
 
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("← Edit confirmed information", use_container_width=True):
+        if st.button(ui["edit"], use_container_width=True):
             st.session_state.step = 2
             st.session_state.plain_language = ""
             st.rerun()
 
     with c2:
         if st.button(
-            "Continue to education →",
+            "Continue to medication calendar →",
             type="primary",
             use_container_width=True,
         ):
             st.session_state.step = 4
             st.rerun()
 
-
-
 elif st.session_state.step == 4:
-    st.subheader("Condition education")
+    import calendar
+
+    st.subheader("My medication calendar")
+
+    if st.button(":material/home: Back to Home", key="calendar_home"):
+        st.session_state.step = 1
+        st.rerun()
+
+    st.write(
+        "Review the start date and duration for each medicine "
+        "before creating your schedule."
+    )
+
+    start_date = st.date_input(
+        "When did you start, or will you start, your medication?",
+        value=date.today(),
+        key="calendar_start_date",
+    )
+
+    medications = st.session_state.extracted.get("medications", [])
+
+    if not medications:
+        st.warning("No confirmed medications were found.")
+    else:
+        confirmed_schedule = []
+
+        for i, med in enumerate(medications):
+            st.markdown(
+                f"### {med.get('medication') or f'Medicine {i + 1}'}"
+            )
+            st.write(
+                f"Prescribed dose: {med.get('dosage') or 'Not specified'}"
+            )
+            st.write(
+                f"Frequency: {med.get('frequency') or 'Not specified'}"
+            )
+
+            duration_days = st.number_input(
+                f"Confirm duration in days for medicine {i + 1}",
+                min_value=1,
+                max_value=365,
+                value=1,
+                key=f"calendar_duration_{i}",
+                help="Enter the duration stated on your prescription.",
+            )
+
+            confirmed_schedule.append({
+                "medication": med.get("medication") or f"Medicine {i + 1}",
+                "dosage": med.get("dosage") or "Not specified",
+                "frequency": med.get("frequency") or "Not specified",
+                "start": start_date,
+                "end": start_date + timedelta(days=int(duration_days) - 1),
+            })
+
+        if st.button("Create my schedule", type="primary"):
+            st.session_state.medication_schedule = confirmed_schedule
+            st.session_state.schedule_created = True
+            st.rerun()
+
+    if st.session_state.get("schedule_created"):
+        schedule = st.session_state.medication_schedule
+        today = date.today()
+        year = today.year
+        month = today.month
+
+        st.markdown("## My medication calendar")
+        st.subheader(f"{calendar.month_name[month]} {year}")
+
+        weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        cols = st.columns(7)
+
+        for col, weekday in zip(cols, weekdays):
+            col.markdown(f"**{weekday}**")
+
+        if st.session_state.selected_calendar_date is None:
+            st.session_state.selected_calendar_date = today
+
+        for week in calendar.monthcalendar(year, month):
+            cols = st.columns(7)
+
+            for col, day_num in zip(cols, week):
+                with col:
+                    if day_num == 0:
+                        st.write(" ")
+                    else:
+                        current_date = date(year, month, day_num)
+
+                        if st.button(
+                            str(day_num),
+                            key=f"calendar_day_{year}_{month}_{day_num}",
+                            use_container_width=True,
+                        ):
+                            st.session_state.selected_calendar_date = current_date
+                            st.rerun()
+
+                        for item in schedule:
+                            if item["start"] <= current_date <= item["end"]:
+                                st.caption(f"💊 {item['medication']}")
+
+        selected_date = st.session_state.selected_calendar_date
+
+        st.markdown(
+            f"### Medication for {selected_date.strftime('%A, %d %B %Y')}"
+        )
+
+        found_medication = False
+
+        for item in schedule:
+            if item["start"] <= selected_date <= item["end"]:
+                found_medication = True
+                st.markdown(f"**{item['medication']}**")
+                st.write(f"Prescribed dose: {item['dosage']}")
+                st.write(f"Frequency: {item['frequency']}")
+
+        if not found_medication:
+            st.info("No medication course is scheduled for this date.")
+
+        st.caption(
+            "Dates are based on the start dates and durations you confirmed."
+        )
+
+        
+        st.divider()
+        st.subheader("Confirm your reminder schedule")
+
+        st.write(
+            "Review your medication details and dates against "
+            "your prescription before activating reminders."
+        )
+
+        if st.button(
+            "Activate reminders",
+            type="primary",
+            use_container_width=True,
+            key="activate_reminders",
+        ):
+            st.session_state.reminders_active = True
+            st.success("Your reminder schedule has been activated in this app.")
+            st.rerun()
+
+        if st.session_state.get("reminders_active", False):
+            st.success("Reminders are marked as active.")
+
+            st.caption(
+                "This prototype does not yet send notifications "
+                "when the app is closed."
+            )
+
+
+        if st.button("Continue to condition education →", type="primary"):
+            st.session_state.step = 5
+            st.rerun()
+
+
+elif st.session_state.step == 5:
+    st.subheader(ui["education"])
 
     condition = (
         st.session_state.extracted.get("condition_or_procedure") or ""
@@ -296,10 +575,81 @@ elif st.session_state.step == 4:
     )
 
     if st.button(
+        "Find a pharmacy →",
+        type="primary",
+        use_container_width=True,
+    ):
+        st.session_state.step = 6
+        st.rerun()
+
+
+    if st.button(
         "Start another document",
         type="primary",
         use_container_width=True,
     ):
+        reset()
+
+
+elif st.session_state.step == 6:
+    st.subheader("Find a nearby pharmacy")
+
+    st.write(
+        "Enter a postcode or town to find pharmacies "
+        "and get directions."
+    )
+
+    pharmacy_location = st.text_input(
+        "Postcode or town",
+        placeholder="e.g. L1 1JQ or Liverpool",
+        key="pharmacy_location",
+    )
+
+    
+    if st.button("Find pharmacies", type="primary"):
+        location = pharmacy_location.strip()
+        if not location:
+                st.warning("Please enter a postcode or town.")
+        else:
+            with st.spinner("Searching for nearby pharmacies..."):
+                    pharmacies = find_pharmacies(location)
+
+        if pharmacies is None:
+                    st.error(
+                        "The pharmacy search is temporarily unavailable. "
+                        "Please try again later."
+                    )
+        elif not pharmacies:
+                    st.info(
+                        "No pharmacies were found nearby. "
+                        "Try a nearby town or a different postcode."
+                    )
+        else:
+                    st.success(f"Found {len(pharmacies)} pharmacies.")
+
+        for i, pharmacy in enumerate(pharmacies):
+            with st.container(border=True):
+                            st.subheader(pharmacy["name"])
+                            st.write(pharmacy["address"])
+                            st.link_button(
+                                "Get directions",
+                                pharmacy["directions"],
+                                key=f"pharmacy_directions_{i}",
+                            )
+
+    st.caption(
+                "Pharmacy information comes from OpenStreetMap "
+                "and may be incomplete. Please check details "
+                "before travelling."
+            )
+    st.caption("Map data © OpenStreetMap contributors.")
+
+
+    if st.button("← Back to condition education"):
+        st.session_state.step = 5
+        st.rerun()
+
+    if st.button("Start another document"):
         reset()
 
 
