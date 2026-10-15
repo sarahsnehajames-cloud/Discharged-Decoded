@@ -108,7 +108,7 @@ st.markdown("""
 .stTextArea textarea,
 .stNumberInput input,
 .stDateInput input {
-    background-color: #FFFFFF;
+    background-color: #F5F2F9;
     color: #241B2B !important;
     border-color: #8B72A6;
 }
