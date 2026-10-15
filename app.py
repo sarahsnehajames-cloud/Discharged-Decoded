@@ -141,7 +141,7 @@ st.markdown("""
 
 /* Home screen feature cards */
 .feature-card {
-    background-color: #F7F2FB;
+    background-color: #FFFFFF ;
     border: 1px solid #D8C4EA;
     border-top: 5px solid #7254A5;
     border-radius: 16px;
