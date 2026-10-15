@@ -76,7 +76,7 @@ st.markdown("""
 
 /* Medication cards */
 .st-key-med-card {
-    background-color: #F7F2FB;
+    background-color: #FFFFFF ;
     border: 1px solid #D8C4EA;
     border-radius: 14px;
     padding: 18px;
@@ -108,7 +108,7 @@ st.markdown("""
 .stTextArea textarea,
 .stNumberInput input,
 .stDateInput input {
-    background-color: #F5F2F9;
+    background-color: #FFFFFF ;
     color: #241B2B !important;
     border-color: #8B72A6;
 }
